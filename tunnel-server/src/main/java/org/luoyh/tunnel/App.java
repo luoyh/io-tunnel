@@ -35,12 +35,11 @@ public class App {
 				System.err.println("new connect!!");
 				netClient = s;
 				s.handler(buf -> {
-					final String req = buf.toString();
 					if (null == client) {
 						s.write(EMPTY);
 						return;
 					}
-					client.write(req);
+					client.write(buf);
 				});
 			});
 			
