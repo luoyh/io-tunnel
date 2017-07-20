@@ -72,7 +72,7 @@ public class App {
 							while (clients.isEmpty() || (client = clients.removeFirst()) == null) {
 								obtainClient();
 								try {
-									clients.wait(100);
+									clients.wait(2000);
 								} catch (InterruptedException e) {
 									e.printStackTrace();
 								}

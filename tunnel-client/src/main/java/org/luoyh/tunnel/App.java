@@ -4,8 +4,6 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.luoyh.tunnel.utils.JsonUtils;
-
 import io.vertx.core.Vertx;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetSocket;
@@ -37,8 +35,6 @@ public class App {
 	//private static ExecutorService pool = Executors.newCachedThreadPool();
 	private static Map<String, NetSocket> nets = new ConcurrentHashMap<>();
 	private static LinkedList<NetSocket> clients = new LinkedList<>();
-	private static final int KEY_LENGTH = 36;
-	private static NetClient nc = vertx.createNetClient();
 	
 	private static void serverConn() {
 		vertx.createNetClient().connect(serverPort, serverHost, r -> {
@@ -54,7 +50,7 @@ public class App {
 						while (clients.isEmpty() || (c = clients.removeFirst()) == null) {
 							localConn();
 							try {
-								clients.wait(100);
+								clients.wait(2000);
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
