@@ -1,11 +1,18 @@
 package org.luoyh.tunnel;
 
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import io.vertx.core.Vertx;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 
 /**
- * Hello world!
+ * 
+ * @author luoyh(Roy)-Jul 20, 2017
  *
  */
 public class App {
@@ -19,33 +26,69 @@ public class App {
 	public static String end = "0" + LINE + LINE;
 	
 	private static Vertx vertx = Vertx.factory.vertx();
-	private static NetSocket client = null;
-	private static NetSocket netClient = null;
-	//private static SynchronousQueue<String> msgQueue = new SynchronousQueue<>();
+	private static NetSocket signal = null;
+	private static ExecutorService pool = Executors.newCachedThreadPool();
+	private static Map<String, NetSocket> nets = new ConcurrentHashMap<>();
+	private static LinkedList<NetSocket> clients = new LinkedList<>();
+	
+	private static void obtainClient() {
+		signal.write("new");
+	}
 	
 	public static void main(String[] args) {
 		final int netPort = Integer.parseInt(args[0]);
 		final int remotePort = Integer.parseInt(args[1]);
+		final int signalPort = 33333;
 		
+		// signal thread.
+		new Thread(() -> {
+			NetServer ns = vertx.createNetServer();
+			ns.connectHandler(s -> {
+				if (null != signal) {
+					signal.close();
+					signal = null;
+				}
+				s.closeHandler(__ -> signal = null);
+				signal = s;
+			});
+			ns.listen(signalPort);
+		}).start();
 		
 		new Thread(() -> {
 			NetServer ns = vertx.createNetServer();
 			
 			ns.connectHandler(s -> {
-				System.err.println("new connect!!");
-				netClient = s;
-				s.handler(buf -> {
-					if (null == client) {
-						s.write(EMPTY);
-						return;
-					}
-					client.write(buf);
+				pool.submit(() -> {
+					s.handler(buf -> {
+						if (clients.isEmpty() && null == signal) {
+							s.write(EMPTY);
+							return;
+						}
+						if (null == signal) {
+							return;
+						}
+						NetSocket client  = null;
+						synchronized (clients) {
+							while (clients.isEmpty() || (client = clients.removeFirst()) == null) {
+								obtainClient();
+								try {
+									clients.wait(100);
+								} catch (InterruptedException e) {
+									e.printStackTrace();
+								}
+							}
+						}
+						nets.put(client.writeHandlerID(), s);
+						// dict.put(client.writeHandlerID(), s);
+						
+						client.write(buf);
+					});
 				});
 			});
 			
 			ns.listen(netPort, "0.0.0.0", r -> {
 				if (r.succeeded()) {
-					System.out.println("server is listening!");
+					System.out.println("11111 server is listening!");
 				} else {
 					System.out.println("failed to bind!");
 				}
@@ -56,22 +99,35 @@ public class App {
 			NetServer ns = vertx.createNetServer();
 			
 			ns.connectHandler(s -> {
-				client = s;
 				s.handler(buf -> {
-					if (null == netClient) {
-						return ;
+					try {
+						NetSocket net = nets.get(s.writeHandlerID());
+						if (null != net) {
+							net.write(buf);
+						} else {
+							System.err.println("net is null");
+						}
+					} catch (Exception ex) {
+						ex.printStackTrace();
 					}
-					netClient.write(buf);
 				});
+				s.closeHandler(__ -> {
+					nets.remove(s.writeHandlerID());
+				});
+				synchronized (clients) {
+					clients.addLast(s);
+					clients.notify();
+				}
 			});
 			
 			ns.listen(remotePort, "0.0.0.0", r -> {
 				if (r.succeeded()) {
-					System.out.println("server is listening!");
+					System.out.println("22222 server is listening!");
 				} else {
 					System.out.println("failed to bind!");
 				}
 			});
 		}).start();
 	}
+
 }
