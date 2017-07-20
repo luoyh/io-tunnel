@@ -71,8 +71,8 @@ public class App {
 	}
 	
 	private static void localConn() {
-		System.out.println("localConn");
-		NetClient nc = Vertx.factory.vertx().createNetClient();
+		// here must be new instance, why???
+		NetClient nc = Vertx.vertx().createNetClient();
 		nc.connect(localPort, localHost, (r) -> {
 			if (r.succeeded()) {
 				NetSocket c = r.result();
